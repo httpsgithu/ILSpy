@@ -272,8 +272,16 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			if (!MatchInstruction.IsDeconstructMethod(call.Method))
 				return false;
-			if (call.Method.IsStatic == call is CallVirt)
-				return false;
+			if (call.Method.IsStatic || call.Method.DeclaringType.IsReferenceType == false)
+			{
+				if (!(call is Call))
+					return false;
+			}
+			else
+			{
+				if (!(call is CallVirt))
+					return false;
+			}
 			if (call.Arguments.Count < 3)
 				return false;
 			deconstructionResults = new ILVariable[call.Arguments.Count - 1];
@@ -378,6 +386,28 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				previousIndex = index;
 			}
 			AddMissingAssignmentsForConversions(int.MaxValue, ref delayedActions);
+
+			if (deconstructionResults != null)
+			{
+				int i = previousIndex + 1;
+				while (i < deconstructionResults.Length)
+				{
+					var v = deconstructionResults[i];
+					// this should only happen in release mode, where usually the last deconstruction element
+					// is not stored to a temporary, if it is used directly (and only once!)
+					// after the deconstruction.
+					if (v?.LoadCount == 1)
+					{
+						delayedActions += (DeconstructInstruction deconstructInst) => {
+							var freshVar = context.Function.RegisterVariable(VariableKind.StackSlot, v.Type);
+							deconstructInst.Assignments.Instructions.Add(new StLoc(freshVar, new LdLoc(v)));
+							v.LoadInstructions[0].Variable = freshVar;
+						};
+					}
+					i++;
+				}
+			}
+
 			return startPos != pos;
 
 			void AddMissingAssignmentsForConversions(int index, ref Action<DeconstructInstruction> delayedActions)
@@ -397,6 +427,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 							stLoc.Variable = freshVar;
 						};
 					}
+					previousIndex = conversionResultIndex;
 					conversionStLocIndex++;
 				}
 			}
@@ -449,7 +480,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				return conv == null || conv.Kind == ConversionKind.Nop;
 			}
-			if (c.IsNumericConversion)
+			if (c.IsNumericConversion && conv != null)
 			{
 				switch (conv.Kind)
 				{

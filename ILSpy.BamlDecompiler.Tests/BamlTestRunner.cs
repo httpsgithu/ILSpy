@@ -23,6 +23,7 @@ using System.Linq;
 using System.Threading;
 using System.Xml.Linq;
 
+using ICSharpCode.BamlDecompiler;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Tests.Helpers;
 using ICSharpCode.Decompiler.Util;
@@ -137,9 +138,27 @@ namespace ILSpy.BamlDecompiler.Tests
 		}
 
 		[Test]
+		public void Issue2052()
+		{
+			RunTest("cases/issue2052");
+		}
+
+		[Test]
 		public void Issue2097()
 		{
 			RunTest("cases/issue2097");
+		}
+
+		[Test]
+		public void Issue2116()
+		{
+			RunTest("cases/issue2116");
+		}
+
+		[Test]
+		public void ReadonlyProperty()
+		{
+			RunTest("cases/readonlyproperty");
 		}
 
 		#region RunTest
@@ -148,7 +167,7 @@ namespace ILSpy.BamlDecompiler.Tests
 			RunTest(name, typeof(BamlTestRunner).Assembly.Location,
 				Path.Combine(
 					Path.GetDirectoryName(typeof(BamlTestRunner).Assembly.Location),
-					"../../../../ILSpy.BamlDecompiler.Tests", name + ".xaml"));
+					"../../../..", name + ".xaml"));
 		}
 
 		void RunTest(string name, string asmPath, string sourcePath)
@@ -156,13 +175,17 @@ namespace ILSpy.BamlDecompiler.Tests
 			using (var fileStream = new FileStream(asmPath, FileMode.Open, FileAccess.Read))
 			{
 				var module = new PEFile(asmPath, fileStream);
-				var resolver = new UniversalAssemblyResolver(asmPath, false, module.Reader.DetectTargetFrameworkId());
+				var resolver = new UniversalAssemblyResolver(asmPath, false, module.Metadata.DetectTargetFrameworkId());
 				resolver.RemoveSearchDirectory(".");
 				resolver.AddSearchDirectory(Path.GetDirectoryName(asmPath));
 				var res = module.Resources.First();
 				Stream bamlStream = LoadBaml(res, name + ".baml");
-				Assert.IsNotNull(bamlStream);
-				XDocument document = BamlResourceEntryNode.LoadIntoDocument(module, resolver, bamlStream, CancellationToken.None);
+				Assert.That(bamlStream, Is.Not.Null);
+
+				BamlDecompilerTypeSystem typeSystem = new BamlDecompilerTypeSystem(module, resolver);
+				var decompiler = new XamlDecompiler(typeSystem, new BamlDecompilerSettings());
+
+				XDocument document = decompiler.Decompile(bamlStream).Xaml;
 
 				XamlIsEqual(File.ReadAllText(sourcePath), document.ToString());
 			}

@@ -246,6 +246,28 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			}
 		}
 
+		internal void EarlyReturnInTryBlock(bool a, bool b)
+		{
+			try
+			{
+				if (a)
+				{
+					Console.WriteLine("a");
+				}
+				else if (b)
+				{
+					// #2379: The only goto-free way of representing this code is to use a return statement
+					return;
+				}
+
+				Console.WriteLine("a || !b");
+			}
+			finally
+			{
+				Console.WriteLine("finally");
+			}
+		}
+
 #if ROSLYN || !OPT
 		// TODO Non-Roslyn compilers create a second while loop inside the try, by inverting the if
 		// This is fixed in the non-optimised version by the enabling the RemoveDeadCode flag
@@ -458,7 +480,9 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			catch (Exception ex) when (ex.Data.IsFixedSize)
 			{
 				Console.WriteLine(ex.ToString());
+#pragma warning disable CA2200 // Rethrow to preserve stack details
 				throw ex;
+#pragma warning restore CA2200 // Rethrow to preserve stack details
 			}
 		}
 
@@ -471,7 +495,9 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			catch (Exception ex) when (ex is InternalBufferOverflowException)
 			{
 				Console.WriteLine(ex.ToString());
+#pragma warning disable CA2200 // Rethrow to preserve stack details
 				throw ex;
+#pragma warning restore CA2200 // Rethrow to preserve stack details
 			}
 		}
 #endif

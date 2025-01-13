@@ -1,4 +1,5 @@
-﻿// Copyright (c) 2018 Daniel Grunwald
+﻿#nullable enable
+// Copyright (c) 2018 Daniel Grunwald
 // Based on the .NET Core ResourceReader; make available under the MIT license
 // by the .NET Foundation.
 // 
@@ -30,7 +31,7 @@ namespace ICSharpCode.Decompiler.Util
 	/// <summary>
 	/// .resources file.
 	/// </summary>
-	public class ResourcesFile : IEnumerable<KeyValuePair<string, object>>, IDisposable
+	public class ResourcesFile : IEnumerable<KeyValuePair<string, object?>>, IDisposable
 	{
 		sealed class MyBinaryReader : BinaryReader
 		{
@@ -75,25 +76,34 @@ namespace ICSharpCode.Decompiler.Util
 			StartOfUserTypes = 0x40
 		}
 
+		enum SerializationFormat
+		{
+			BinaryFormatter = 1,
+			TypeConverterByteArray = 2,
+			TypeConverterString = 3,
+			ActivatorStream = 4
+		}
+
 		/// <summary>Holds the number used to identify resource files.</summary>
 		public const int MagicNumber = unchecked((int)0xBEEFCACE);
 		const int ResourceSetVersion = 2;
 
 		readonly MyBinaryReader reader;
 		readonly int version;
+		readonly bool usesSerializationFormat;
 		readonly int numResources;
 		readonly string[] typeTable;
 		readonly int[] namePositions;
 		readonly long fileStartPosition;
 		readonly long nameSectionPosition;
 		readonly long dataSectionPosition;
-		long[] startPositions;
+		long[]? startPositions;
 
 		/// <summary>
 		/// Creates a new ResourcesFile.
 		/// </summary>
 		/// <param name="stream">Input stream.</param>
-		/// <param name="leaveOpen">Whether the stream should be help open when the ResourcesFile is disposed.</param>
+		/// <param name="leaveOpen">Whether the stream should be held open when the ResourcesFile is disposed.</param>
 		/// <remarks>
 		/// The stream is must be held open while the ResourcesFile is in use.
 		/// The stream must be seekable; any operation using the ResourcesFile will end up seeking the stream.
@@ -129,7 +139,8 @@ namespace ICSharpCode.Decompiler.Util
 				// We don't care about numBytesToSkip; read the rest of the header
 
 				// readerType:
-				reader.ReadString();
+				string readerType = reader.ReadString();
+				usesSerializationFormat = readerType == "System.Resources.Extensions.DeserializingResourceReader, System.Resources.Extensions, Version=4.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51";
 				// resourceSetType:
 				reader.ReadString();
 			}
@@ -285,7 +296,7 @@ namespace ICSharpCode.Decompiler.Util
 			return true;
 		}
 
-		object LoadObject(int dataOffset)
+		object? LoadObject(int dataOffset)
 		{
 			try
 			{
@@ -318,7 +329,7 @@ namespace ICSharpCode.Decompiler.Util
 		// from that location.
 		// Anyone who calls LoadObject should make sure they take a lock so 
 		// no one can cause us to do a seek in here.
-		private object LoadObjectV1(int dataOffset)
+		private object? LoadObjectV1(int dataOffset)
 		{
 			Debug.Assert(System.Threading.Monitor.IsEntered(reader));
 			reader.Seek(dataSectionPosition + dataOffset, SeekOrigin.Begin);
@@ -368,11 +379,11 @@ namespace ICSharpCode.Decompiler.Util
 						bits[i] = reader.ReadInt32();
 					return new decimal(bits);
 				default:
-					return new ResourceSerializedObject(FindType(typeIndex), this, reader.BaseStream.Position);
+					return new ResourceSerializedObject(FindType(typeIndex), this, reader.BaseStream.Position, usesSerializationFormat);
 			}
 		}
 
-		private object LoadObjectV2(int dataOffset)
+		private object? LoadObjectV2(int dataOffset)
 		{
 			Debug.Assert(System.Threading.Monitor.IsEntered(reader));
 			reader.Seek(dataSectionPosition + dataOffset, SeekOrigin.Begin);
@@ -460,23 +471,23 @@ namespace ICSharpCode.Decompiler.Util
 					{
 						throw new BadImageFormatException("Invalid typeCode");
 					}
-					return new ResourceSerializedObject(FindType(typeCode - ResourceTypeCode.StartOfUserTypes), this, reader.BaseStream.Position);
+					return new ResourceSerializedObject(FindType(typeCode - ResourceTypeCode.StartOfUserTypes), this, reader.BaseStream.Position, usesSerializationFormat);
 			}
 		}
 
-		public object GetResourceValue(int index)
+		public object? GetResourceValue(int index)
 		{
 			GetResourceName(index, out int dataOffset);
 			return LoadObject(dataOffset);
 		}
 
-		public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
+		public IEnumerator<KeyValuePair<string, object?>> GetEnumerator()
 		{
 			for (int i = 0; i < numResources; i++)
 			{
 				string name = GetResourceName(i, out int dataOffset);
-				object val = LoadObject(dataOffset);
-				yield return new KeyValuePair<string, object>(name, val);
+				object? val = LoadObject(dataOffset);
+				yield return new KeyValuePair<string, object?>(name, val);
 			}
 		}
 
@@ -487,7 +498,7 @@ namespace ICSharpCode.Decompiler.Util
 
 		long[] GetStartPositions()
 		{
-			long[] positions = LazyInit.VolatileRead(ref startPositions);
+			long[]? positions = LazyInit.VolatileRead(ref startPositions);
 			if (positions != null)
 				return positions;
 			lock (reader)
@@ -508,7 +519,7 @@ namespace ICSharpCode.Decompiler.Util
 			}
 		}
 
-		internal byte[] GetBytesForSerializedObject(long pos)
+		internal byte[] GetBytesForSerializedObject(long pos, bool usesSerializationFormat)
 		{
 			long[] positions = GetStartPositions();
 			int i = Array.BinarySearch(positions, pos);
@@ -534,6 +545,12 @@ namespace ICSharpCode.Decompiler.Util
 				}
 				int len = (int)(endPos - pos);
 				reader.Seek(pos, SeekOrigin.Begin);
+				if (usesSerializationFormat)
+				{
+					int kind = reader.Read7BitEncodedInt();
+					Debug.Assert(Enum.IsDefined(typeof(SerializationFormat), kind));
+					len = reader.Read7BitEncodedInt();
+				}
 				return reader.ReadBytes(len);
 			}
 		}
@@ -541,15 +558,17 @@ namespace ICSharpCode.Decompiler.Util
 
 	public class ResourceSerializedObject
 	{
-		public string TypeName { get; }
+		public string? TypeName { get; }
 		readonly ResourcesFile file;
 		readonly long position;
+		readonly bool usesSerializationFormat;
 
-		internal ResourceSerializedObject(string typeName, ResourcesFile file, long position)
+		internal ResourceSerializedObject(string? typeName, ResourcesFile file, long position, bool usesSerializationFormat)
 		{
-			this.TypeName = typeName;
+			this.TypeName = usesSerializationFormat ? typeName : null;
 			this.file = file;
 			this.position = position;
+			this.usesSerializationFormat = usesSerializationFormat;
 		}
 
 		/// <summary>
@@ -557,7 +576,7 @@ namespace ICSharpCode.Decompiler.Util
 		/// </summary>
 		public Stream GetStream()
 		{
-			return new MemoryStream(file.GetBytesForSerializedObject(position), writable: false);
+			return new MemoryStream(file.GetBytesForSerializedObject(position, usesSerializationFormat), writable: false);
 		}
 
 		/// <summary>
@@ -565,7 +584,7 @@ namespace ICSharpCode.Decompiler.Util
 		/// </summary>
 		public byte[] GetBytes()
 		{
-			return file.GetBytesForSerializedObject(position);
+			return file.GetBytesForSerializedObject(position, usesSerializationFormat);
 		}
 	}
 }

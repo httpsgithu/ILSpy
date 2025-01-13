@@ -223,15 +223,15 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		private dynamic ViewBag;
 
 		public static readonly object[] SupportedMethods = new object[2] {
-			ToCode(null, () => ((IQueryable<object>)null).Aggregate((object o1, object o2) => null)),
-			ToCode(null, () => ((IEnumerable<object>)null).Aggregate((object o1, object o2) => null))
+			ToCode(null, () => ((IQueryable<object>)null).Aggregate((object o1, object o2) => (object)null)),
+			ToCode(null, () => ((IEnumerable<object>)null).Aggregate((object o1, object o2) => (object)null))
 		};
 
 		public static readonly object[] SupportedMethods2 = new object[4] {
-			ToCode(null, () => ((IQueryable<object>)null).Aggregate(null, (object o1, object o2) => null)),
-			ToCode(null, () => ((IQueryable<object>)null).Aggregate((object)null, (Expression<Func<object, object, object>>)((object o1, object o2) => null), (Expression<Func<object, object>>)((object o) => null))),
-			ToCode(null, () => ((IEnumerable<object>)null).Aggregate(null, (object o1, object o2) => null)),
-			ToCode(null, () => ((IEnumerable<object>)null).Aggregate((object)null, (Func<object, object, object>)((object o1, object o2) => null), (Func<object, object>)((object o) => null)))
+			ToCode(null, () => ((IQueryable<object>)null).Aggregate(null, (object o1, object o2) => (object)null)),
+			ToCode(null, () => ((IQueryable<object>)null).Aggregate(null, (object o1, object o2) => (object)null, (object o) => (object)null)),
+			ToCode(null, () => ((IEnumerable<object>)null).Aggregate(null, (object o1, object o2) => (object)null)),
+			ToCode(null, () => ((IEnumerable<object>)null).Aggregate(null, (object o1, object o2) => (object)null, (object o) => (object)null))
 		};
 
 		public static void TestCall(object a)
@@ -467,7 +467,7 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 
 		public void MethodGroupAsExtensionMethod()
 		{
-			ToCode(X(), (Expression<Func<Func<bool>>>)(() => ((IEnumerable<int>)new int[4] { 2000, 2004, 2008, 2012 }).Any));
+			ToCode(X(), (Expression<Func<Func<bool>>>)(() => ((IEnumerable<int>)new int[4] { 2000, 2004, 2008, 2012 }).Any<int>));
 		}
 
 		public void MethodGroupConstant()
@@ -899,6 +899,50 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		{
 			ToCode(null, () => a == b);
 			ToCode(null, () => (Guid)a == (Guid)b);
+		}
+
+		public void NullableLifting_UnaryOperators()
+		{
+			ToCode(null, (int? a) => -a);
+			ToCode(null, (int? a) => ~a);
+			ToCode(null, (byte? a) => -(int?)a);
+			ToCode(null, (byte? a) => ~(int?)a);
+			ToCode(null, (short? a) => -(int?)a);
+			ToCode(null, (short? a) => ~(int?)a);
+			ToCode(null, (long? a) => -a);
+			ToCode(null, (long? a) => ~a);
+			ToCode(null, (uint? a) => -(long?)a);
+			ToCode(null, (uint? a) => ~a);
+			ToCode(null, (sbyte? a) => -(int?)a);
+			ToCode(null, (sbyte? a) => ~(int?)a);
+			ToCode(null, (ushort? a) => -(int?)a);
+			ToCode(null, (ushort? a) => ~(int?)a);
+			ToCode(null, (ulong? a) => ~a);
+			ToCode(null, (bool? a) => !a);
+		}
+
+		public void NullableLifting_Arithmetic_BinaryOperators()
+		{
+			ToCode(null, (int? a) => a + (int?)1);
+			ToCode(null, (int? a) => a + a);
+			ToCode(null, (int? a) => a - (int?)1);
+			ToCode(null, (int? a) => a - a);
+			ToCode(null, (int? a) => a * (int?)2);
+			ToCode(null, (int? a) => a * a);
+			ToCode(null, (int? a) => a / (int?)2);
+			ToCode(null, (int? a) => a / a);
+			ToCode(null, (int? a) => a % (int?)2);
+			ToCode(null, (int? a) => a % a);
+			ToCode(null, (int? a) => a << (int?)2);
+			ToCode(null, (int? a) => a << a);
+			ToCode(null, (int? a) => a >> (int?)2);
+			ToCode(null, (int? a) => a >> a);
+			ToCode(null, (int? a) => a ^ (int?)2);
+			ToCode(null, (int? a) => a ^ a);
+			ToCode(null, (int? a) => a | (int?)2);
+			ToCode(null, (int? a) => a | a);
+			ToCode(null, (int? a) => a & (int?)2);
+			ToCode(null, (int? a) => a & a);
 		}
 	}
 

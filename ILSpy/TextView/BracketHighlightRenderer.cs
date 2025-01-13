@@ -81,6 +81,8 @@ namespace ICSharpCode.ILSpy.TextView
 			if (this.result != result)
 			{
 				this.result = result;
+				this.borderPen = (Pen)textView.FindResource(Themes.ResourceKeys.BracketHighlightBorderPen);
+				this.backgroundBrush = (SolidColorBrush)textView.FindResource(Themes.ResourceKeys.BracketHighlightBackgroundBrush);
 				textView.InvalidateLayer(this.Layer);
 			}
 		}
@@ -90,11 +92,8 @@ namespace ICSharpCode.ILSpy.TextView
 			if (textView == null)
 				throw new ArgumentNullException("textView");
 
-			this.borderPen = new Pen(new SolidColorBrush(Color.FromArgb(52, 0, 0, 255)), 1);
-			this.borderPen.Freeze();
-
-			this.backgroundBrush = new SolidColorBrush(Color.FromArgb(22, 0, 0, 255));
-			this.backgroundBrush.Freeze();
+			this.borderPen = (Pen)textView.FindResource(Themes.ResourceKeys.BracketHighlightBorderPen);
+			this.backgroundBrush = (SolidColorBrush)textView.FindResource(Themes.ResourceKeys.BracketHighlightBackgroundBrush);
 
 			this.textView = textView;
 
@@ -115,6 +114,8 @@ namespace ICSharpCode.ILSpy.TextView
 			BackgroundGeometryBuilder builder = new BackgroundGeometryBuilder();
 
 			builder.CornerRadius = 1;
+			builder.AlignToWholePixels = true;
+			builder.BorderThickness = borderPen?.Thickness ?? 0;
 
 			builder.AddSegment(textView, new TextSegment() { StartOffset = result.OpeningBracketOffset, Length = result.OpeningBracketLength });
 			builder.CloseFigure(); // prevent connecting the two segments

@@ -1,4 +1,5 @@
-﻿// Copyright (c) 2014 Daniel Grunwald
+#nullable enable
+// Copyright (c) 2014 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -77,6 +78,26 @@ namespace ICSharpCode.Decompiler.IL
 			}
 		}
 
+		public static bool HasOppositeSign(this PrimitiveType primitiveType)
+		{
+			switch (primitiveType)
+			{
+				case PrimitiveType.I1:
+				case PrimitiveType.I2:
+				case PrimitiveType.I4:
+				case PrimitiveType.I8:
+				case PrimitiveType.U1:
+				case PrimitiveType.U2:
+				case PrimitiveType.U4:
+				case PrimitiveType.U8:
+				case PrimitiveType.I:
+				case PrimitiveType.U:
+					return true;
+				default:
+					return false;
+			}
+		}
+
 		/// <summary>
 		/// Gets the size in bytes of the primitive type.
 		/// 
@@ -145,12 +166,12 @@ namespace ICSharpCode.Decompiler.IL
 		/// 
 		/// Returns SpecialType.UnknownType for unsupported instructions.
 		/// </summary>
-		public static IType InferType(this ILInstruction inst, ICompilation compilation)
+		public static IType InferType(this ILInstruction inst, ICompilation? compilation)
 		{
 			switch (inst)
 			{
 				case NewObj newObj:
-					return newObj.Method.DeclaringType;
+					return newObj.Method.DeclaringType ?? SpecialType.UnknownType;
 				case NewArr newArr:
 					if (compilation != null)
 						return new ArrayType(compilation, newArr.Type, newArr.Indices.Count);

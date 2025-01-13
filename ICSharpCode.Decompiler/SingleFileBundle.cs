@@ -99,14 +99,9 @@ namespace ICSharpCode.Decompiler
 		{
 			public long Offset;
 			public long Size;
+			public long CompressedSize; // 0 if not compressed, otherwise the compressed size in the bundle
 			public FileType Type;
 			public string RelativePath; // Path of an embedded file, relative to the Bundle source-directory.
-		}
-
-		static UnmanagedMemoryStream AsStream(MemoryMappedViewAccessor view)
-		{
-			long size = checked((long)view.SafeMemoryMappedViewHandle.ByteLength);
-			return new UnmanagedMemoryStream(view.SafeMemoryMappedViewHandle, 0, size);
 		}
 
 		/// <summary>
@@ -114,7 +109,7 @@ namespace ICSharpCode.Decompiler
 		/// </summary>
 		public static Header ReadManifest(MemoryMappedViewAccessor view, long bundleHeaderOffset)
 		{
-			using var stream = AsStream(view);
+			using var stream = view.AsStream();
 			stream.Seek(bundleHeaderOffset, SeekOrigin.Begin);
 			return ReadManifest(stream);
 		}
@@ -128,7 +123,9 @@ namespace ICSharpCode.Decompiler
 			using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
 			header.MajorVersion = reader.ReadUInt32();
 			header.MinorVersion = reader.ReadUInt32();
-			if (header.MajorVersion < 1 || header.MajorVersion > 2)
+
+			// Major versions 3, 4 and 5 were skipped to align bundle versioning with .NET versioning scheme
+			if (header.MajorVersion < 1 || header.MajorVersion > 6)
 			{
 				throw new InvalidDataException($"Unsupported manifest version: {header.MajorVersion}.{header.MinorVersion}");
 			}
@@ -145,17 +142,18 @@ namespace ICSharpCode.Decompiler
 			var entries = ImmutableArray.CreateBuilder<Entry>(header.FileCount);
 			for (int i = 0; i < header.FileCount; i++)
 			{
-				entries.Add(ReadEntry(reader));
+				entries.Add(ReadEntry(reader, header.MajorVersion));
 			}
 			header.Entries = entries.MoveToImmutable();
 			return header;
 		}
 
-		private static Entry ReadEntry(BinaryReader reader)
+		private static Entry ReadEntry(BinaryReader reader, uint bundleMajorVersion)
 		{
 			Entry entry;
 			entry.Offset = reader.ReadInt64();
 			entry.Size = reader.ReadInt64();
+			entry.CompressedSize = bundleMajorVersion >= 6 ? reader.ReadInt64() : 0;
 			entry.Type = (FileType)reader.ReadByte();
 			entry.RelativePath = reader.ReadString();
 			return entry;

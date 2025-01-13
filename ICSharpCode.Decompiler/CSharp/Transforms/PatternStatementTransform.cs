@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -348,8 +348,9 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			var itemVariable = m.Get<IdentifierExpression>("itemVariable").Single().GetILVariable();
 			var indexVariable = m.Get<IdentifierExpression>("indexVariable").Single().GetILVariable();
 			var arrayVariable = m.Get<IdentifierExpression>("arrayVariable").Single().GetILVariable();
-			var loopContainer = forStatement.Annotation<IL.BlockContainer>();
 			if (itemVariable == null || indexVariable == null || arrayVariable == null)
+				return null;
+			if (arrayVariable.Type.Kind != TypeKind.Array && !arrayVariable.Type.IsKnownType(KnownTypeCode.String))
 				return null;
 			if (!VariableCanBeUsedAsForeachLocal(itemVariable, forStatement))
 				return null;
@@ -462,6 +463,8 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				lowerBounds[i] = indexVariable;
 				i++;
 			}
+			if (collection.Type.Kind != TypeKind.Array)
+				return false;
 			var m2 = foreachVariableOnMultArrayAssignPattern.Match(stmt);
 			if (!m2.Success)
 				return false;
@@ -589,15 +592,15 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			}
 		};
 
-		bool CanTransformToAutomaticProperty(IProperty property)
+		bool CanTransformToAutomaticProperty(IProperty property, bool accessorsMustBeCompilerGenerated)
 		{
 			if (!property.CanGet)
 				return false;
-			if (!property.Getter.IsCompilerGenerated())
+			if (accessorsMustBeCompilerGenerated && !property.Getter.IsCompilerGenerated())
 				return false;
 			if (property.Setter is IMethod setter)
 			{
-				if (!setter.IsCompilerGenerated())
+				if (accessorsMustBeCompilerGenerated && !setter.IsCompilerGenerated())
 					return false;
 				if (setter.HasReadonlyModifier())
 					return false;
@@ -608,7 +611,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 		PropertyDeclaration TransformAutomaticProperty(PropertyDeclaration propertyDeclaration)
 		{
 			IProperty property = propertyDeclaration.GetSymbol() as IProperty;
-			if (!CanTransformToAutomaticProperty(property))
+			if (!CanTransformToAutomaticProperty(property, !property.DeclaringTypeDefinition.Fields.Any(f => f.Name == "_" + property.Name && f.IsCompilerGenerated())))
 				return null;
 			IField field = null;
 			Match m = automaticPropertyPattern.Match(propertyDeclaration);
@@ -626,7 +629,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			}
 			if (field == null || !NameCouldBeBackingFieldOfAutomaticProperty(field.Name, out _))
 				return null;
-			if (propertyDeclaration.Setter.HasModifier(Modifiers.Readonly))
+			if (propertyDeclaration.Setter.HasModifier(Modifiers.Readonly) || (propertyDeclaration.HasModifier(Modifiers.Readonly) && !propertyDeclaration.Setter.IsNull))
 				return null;
 			if (field.IsCompilerGenerated() && field.DeclaringTypeDefinition == property.DeclaringTypeDefinition)
 			{
@@ -634,19 +637,22 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				RemoveCompilerGeneratedAttribute(propertyDeclaration.Setter.Attributes);
 				propertyDeclaration.Getter.Body = null;
 				propertyDeclaration.Setter.Body = null;
+				propertyDeclaration.Modifiers &= ~Modifiers.Readonly;
 				propertyDeclaration.Getter.Modifiers &= ~Modifiers.Readonly;
 
-				// Add C# 7.3 attributes on backing field:
-				var attributes = field.GetAttributes()
-					.Where(a => !attributeTypesToRemoveFromAutoProperties.Contains(a.AttributeType.FullName))
-					.Select(context.TypeSystemAstBuilder.ConvertAttribute).ToArray();
-				if (attributes.Length > 0)
+				var fieldDecl = propertyDeclaration.Parent?.Children.OfType<FieldDeclaration>()
+					.FirstOrDefault(fd => field.Equals(fd.GetSymbol()));
+				if (fieldDecl != null)
 				{
-					var section = new AttributeSection {
-						AttributeTarget = "field"
-					};
-					section.Attributes.AddRange(attributes);
-					propertyDeclaration.Attributes.Add(section);
+					fieldDecl.Remove();
+					// Add C# 7.3 attributes on backing field:
+					CSharpDecompiler.RemoveAttribute(fieldDecl, KnownAttribute.CompilerGenerated);
+					CSharpDecompiler.RemoveAttribute(fieldDecl, KnownAttribute.DebuggerBrowsable);
+					foreach (var section in fieldDecl.Attributes)
+					{
+						section.AttributeTarget = "field";
+						propertyDeclaration.Attributes.Add(section.Detach());
+					}
 				}
 			}
 			// Since the property instance is not changed, we can continue in the visitor as usual, so return null
@@ -737,7 +743,8 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				var mrr = parent.Annotation<MemberResolveResult>();
 				var field = mrr?.Member as IField;
 				if (field != null && IsBackingFieldOfAutomaticProperty(field, out var property)
-					&& CanTransformToAutomaticProperty(property) && currentMethod.AccessorOwner != property)
+					&& CanTransformToAutomaticProperty(property, !(field.IsCompilerGenerated() && field.Name == "_" + property.Name))
+					&& currentMethod.AccessorOwner != property)
 				{
 					if (!property.CanSet && !context.Settings.GetterOnlyAutomaticProperties)
 						return null;
@@ -754,14 +761,19 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			var parent = identifier.Parent;
 			var mrr = parent.Annotation<MemberResolveResult>();
 			var field = mrr?.Member as IField;
-			if (field == null)
+			if (field == null || field.Accessibility != Accessibility.Private)
 				return null;
-			var @event = field.DeclaringType.GetEvents(ev => ev.Name == field.Name, GetMemberOptions.IgnoreInheritedMembers).SingleOrDefault();
-			if (@event != null && currentMethod.AccessorOwner != @event)
+			foreach (var ev in field.DeclaringType.GetEvents(null, GetMemberOptions.IgnoreInheritedMembers))
 			{
-				parent.RemoveAnnotations<MemberResolveResult>();
-				parent.AddAnnotation(new MemberResolveResult(mrr.TargetResult, @event));
-				return identifier;
+				if (CSharpDecompiler.IsEventBackingFieldName(field.Name, ev.Name, out int suffixLength) &&
+					currentMethod.AccessorOwner != ev)
+				{
+					parent.RemoveAnnotations<MemberResolveResult>();
+					parent.AddAnnotation(new MemberResolveResult(mrr.TargetResult, ev));
+					if (suffixLength != 0)
+						identifier.Name = identifier.Name.Substring(0, identifier.Name.Length - suffixLength);
+					return identifier;
+				}
 			}
 			return null;
 		}
@@ -904,11 +916,11 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			switch (fieldExpression)
 			{
 				case IdentifierExpression identifier:
-					if (identifier.Identifier != ev.Name)
+					if (!CSharpDecompiler.IsEventBackingFieldName(identifier.Identifier, ev.Name, out _))
 						return false;
 					break;
 				case MemberReferenceExpression memberRef:
-					if (memberRef.MemberName != ev.Name)
+					if (!CSharpDecompiler.IsEventBackingFieldName(memberRef.MemberName, ev.Name, out _))
 						return false;
 					break;
 				default:
@@ -931,7 +943,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			"System.Runtime.CompilerServices.MethodImplAttribute"
 		};
 
-		static readonly string[] attributeTypesToRemoveFromAutoProperties = new[] {
+		internal static readonly string[] attributeTypesToRemoveFromAutoProperties = new[] {
 			"System.Runtime.CompilerServices.CompilerGeneratedAttribute",
 			"System.Diagnostics.DebuggerBrowsableAttribute"
 		};
@@ -986,7 +998,10 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 		{
 			if (!ev.PrivateImplementationType.IsNull)
 				return null;
-			if (!ev.Modifiers.HasFlag(Modifiers.Abstract))
+			const Modifiers withoutBody = Modifiers.Abstract | Modifiers.Extern;
+			if (ev.GetSymbol() is not IEvent symbol)
+				return null;
+			if ((ev.Modifiers & withoutBody) == 0)
 			{
 				if (!CheckAutomaticEventV4AggressivelyInlined(ev) && !CheckAutomaticEventV4(ev) && !CheckAutomaticEventV2(ev) && !CheckAutomaticEventV4MCS(ev))
 					return null;
@@ -1004,28 +1019,33 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			ed.Variables.Add(new VariableInitializer(ev.Name));
 			ed.CopyAnnotationsFrom(ev);
 
-			if (ev.GetSymbol() is IEvent eventDef)
+			var fieldDecl = ev.Parent?.Children.OfType<FieldDeclaration>()
+				.FirstOrDefault(IsEventBackingField);
+			if (fieldDecl != null)
 			{
-				IField field = eventDef.DeclaringType.GetFields(f => f.Name == ev.Name, GetMemberOptions.IgnoreInheritedMembers).SingleOrDefault();
-				if (field != null)
+				fieldDecl.Remove();
+				CSharpDecompiler.RemoveAttribute(fieldDecl, KnownAttribute.CompilerGenerated);
+				CSharpDecompiler.RemoveAttribute(fieldDecl, KnownAttribute.DebuggerBrowsable);
+				foreach (var section in fieldDecl.Attributes)
 				{
-					ed.AddAnnotation(field);
-					var attributes = field.GetAttributes()
-							.Where(a => !attributeTypesToRemoveFromAutoEvents.Contains(a.AttributeType.FullName))
-							.Select(context.TypeSystemAstBuilder.ConvertAttribute).ToArray();
-					if (attributes.Length > 0)
-					{
-						var section = new AttributeSection {
-							AttributeTarget = "field"
-						};
-						section.Attributes.AddRange(attributes);
-						ed.Attributes.Add(section);
-					}
+					section.AttributeTarget = "field";
+					ed.Attributes.Add(section.Detach());
 				}
 			}
 
 			ev.ReplaceWith(ed);
 			return ed;
+
+			bool IsEventBackingField(FieldDeclaration fd)
+			{
+				if (fd.Variables.Count > 1)
+					return false;
+				if (fd.GetSymbol() is not IField f)
+					return false;
+				return f.Accessibility == Accessibility.Private
+					&& symbol.ReturnType.Equals(f.ReturnType)
+					&& CSharpDecompiler.IsEventBackingFieldName(f.Name, ev.Name, out _);
+			}
 		}
 		#endregion
 
@@ -1160,9 +1180,21 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			}
 			return base.VisitBinaryOperatorExpression(expr);
 		}
+
+		public override AstNode VisitUnaryOperatorExpression(UnaryOperatorExpression expr)
+		{
+			if (expr.Operator == UnaryOperatorType.Not && expr.Expression is BinaryOperatorExpression { Operator: BinaryOperatorType.Equality } binary)
+			{
+				binary.Operator = BinaryOperatorType.InEquality;
+				expr.ReplaceWith(binary.Detach());
+				return VisitBinaryOperatorExpression(binary);
+			}
+			return base.VisitUnaryOperatorExpression(expr);
+		}
 		#endregion
 
-		#region C# 7.3 pattern based fixed
+		#region C# 7.3 pattern based fixed (for value types)
+		// reference types are handled by DetectPinnedRegions.IsCustomRefPinPattern
 		static readonly Expression addressOfPinnableReference = new UnaryOperatorExpression {
 			Operator = UnaryOperatorType.AddressOf,
 			Expression = new InvocationExpression {
@@ -1180,7 +1212,11 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 					var m = addressOfPinnableReference.Match(v.Initializer);
 					if (m.Success)
 					{
-						v.Initializer = m.Get<Expression>("target").Single().Detach();
+						Expression target = m.Get<Expression>("target").Single();
+						if (target.GetResolveResult().Type.IsReferenceType == false)
+						{
+							v.Initializer = target.Detach();
+						}
 					}
 				}
 			}

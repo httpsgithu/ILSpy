@@ -1,4 +1,6 @@
-﻿using System;
+﻿#if !(CS110 && NET70)
+using System;
+#endif
 using System.Text;
 
 namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
@@ -17,9 +19,16 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			return &Overloaded;
 		}
 
+#if !(CS110 && NET70)
 		public unsafe IntPtr GetAddressAsIntPtr()
 		{
 			return (IntPtr)(delegate*<void>)(&Overloaded);
+		}
+#endif
+
+		public unsafe nint GetAddressAsNInt()
+		{
+			return (nint)(delegate*<void>)(&Overloaded);
 		}
 
 		public unsafe void* GetAddressAsVoidPtr()
@@ -86,13 +95,17 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		public unsafe delegate*<object, ref readonly dynamic> F12;
 		public unsafe delegate*<in dynamic, object> F13;
 		public unsafe delegate*<out dynamic, object> F14;
-		public unsafe D<delegate*<dynamic>[], dynamic> F15;
-		public unsafe delegate*<A<object>.B<dynamic>> F16;
+#if CS120
+		public unsafe delegate*<ref readonly dynamic, object> F15;
+#endif
+		public unsafe D<delegate*<dynamic>[], dynamic> F16;
+		public unsafe delegate*<A<object>.B<dynamic>> F17;
 	}
 
 	internal class FunctionPointersWithNativeIntegerTypes
 	{
 		public unsafe delegate*<nint, nint, nint> F1;
+#if !(CS110 && NET70)
 		public unsafe delegate*<IntPtr, IntPtr, nint> F2;
 		public unsafe delegate*<nint, IntPtr, IntPtr> F3;
 		public unsafe delegate*<IntPtr, nint, IntPtr> F4;
@@ -100,6 +113,8 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		public unsafe delegate*<nint, delegate*<IntPtr, IntPtr, IntPtr>> F6;
 		public unsafe delegate*<delegate*<IntPtr, IntPtr, nint>, IntPtr> F7;
 		public unsafe delegate*<IntPtr, delegate*<IntPtr, nint, IntPtr>> F8;
+		public unsafe delegate*<IntPtr, delegate*<IntPtr, IntPtr, IntPtr>> F9;
+#endif
 	}
 
 	internal class FunctionPointersWithRefParams
@@ -107,11 +122,10 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		public unsafe delegate*<in byte, ref char, out float, ref readonly int> F1;
 		public unsafe delegate*<ref char, out float, ref int> F2;
 
-		// TODO: re-enable test after https://github.com/dotnet/roslyn/issues/47487 is fixed
-		//public unsafe int CallF1(byte b, char c, out float f)
-		//{
-		//	return F1(1, ref c, out f);
-		//}
+		public unsafe int CallF1(byte b, char c, out float f)
+		{
+			return F1(in b, ref c, out f);
+		}
 
 		public unsafe void CallF2(byte b, char c, out float f)
 		{
