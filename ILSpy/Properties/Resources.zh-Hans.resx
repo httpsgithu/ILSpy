@@ -201,6 +201,9 @@
   <data name="CopyName" xml:space="preserve">
     <value>复制完全限定名称</value>
   </data>
+  <data name="CouldNotUseSdkStyleProjectFormat" xml:space="preserve">
+    <value>无法使用SDK-style项目格式，因为发现有不兼容目标框架别名。</value>
+  </data>
   <data name="Create" xml:space="preserve">
     <value>创建</value>
   </data>
@@ -227,6 +230,12 @@
   </data>
   <data name="DecompilationCompleteInF1Seconds" xml:space="preserve">
     <value>反编译完成。耗时 {0:F1} 秒。</value>
+  </data>
+  <data name="DecompilationViewOptions" xml:space="preserve">
+    <value>反编译视图选项</value>
+  </data>
+  <data name="DecompilationWasCancelled" xml:space="preserve">
+    <value>反编译已取消。</value>
   </data>
   <data name="Decompile" xml:space="preserve">
     <value>反编译</value>
@@ -257,6 +266,9 @@
   </data>
   <data name="DecompilerSettings.AlwaysUseBraces" xml:space="preserve">
     <value>始终使用大括号</value>
+  </data>
+  <data name="DecompilerSettings.AlwaysUseGlobal" xml:space="preserve">
+    <value>总是使用 "global::" 完全限定命名空间</value>
   </data>
   <data name="DecompilerSettings.ApplyWindowsRuntimeProjectionsOnLoadedAssemblies" xml:space="preserve">
     <value>在已加载的程序集上应用 Windows 运行时投影</value>
@@ -333,11 +345,17 @@
   <data name="DecompilerSettings.FSpecificOptions" xml:space="preserve">
     <value>F# 特定选项</value>
   </data>
+  <data name="DecompilerSettings.FileScopedNamespaces" xml:space="preserve">
+    <value>使用文件作用域命名空间表达式 (File-scoped namespace)</value>
+  </data>
   <data name="DecompilerSettings.ForStatement" xml:space="preserve">
     <value>如果可能，转换到 for 块</value>
   </data>
   <data name="DecompilerSettings.FunctionPointers" xml:space="preserve">
     <value>函数指针</value>
+  </data>
+  <data name="DecompilerSettings.GetterOnlyAutomaticProperties" xml:space="preserve">
+    <value>反编译 getter-only 自动属性</value>
   </data>
   <data name="DecompilerSettings.IncludeXMLDocumentationCommentsInTheDecompiledCode" xml:space="preserve">
     <value>在反编译代码中包括 XML 文档注释</value>
@@ -363,6 +381,9 @@
   <data name="DecompilerSettings.IsUnmanagedAttributeOnTypeParametersShouldBeReplacedWithUnmanagedConstraints" xml:space="preserve">
     <value>类型参数上的 IsUnmanagedAttribute 应替换为 unmanaged 约束</value>
   </data>
+  <data name="DecompilerSettings.LifetimeAnnotations" xml:space="preserve">
+    <value>'scoped' 生命周期注解关键字</value>
+  </data>
   <data name="DecompilerSettings.NativeIntegers" xml:space="preserve">
     <value>使用 nint/nuint 类型</value>
   </data>
@@ -378,11 +399,23 @@
   <data name="DecompilerSettings.Other" xml:space="preserve">
     <value>其他</value>
   </data>
+  <data name="DecompilerSettings.PatternMatching" xml:space="preserve">
+    <value>使用模式匹配表达式</value>
+  </data>
+  <data name="DecompilerSettings.ProjectExport" xml:space="preserve">
+    <value>项目导出</value>
+  </data>
   <data name="DecompilerSettings.Ranges" xml:space="preserve">
     <value>范围(ranges)</value>
   </data>
   <data name="DecompilerSettings.ReadOnlyMethods" xml:space="preserve">
     <value>只读方法</value>
+  </data>
+  <data name="DecompilerSettings.RecordClasses" xml:space="preserve">
+    <value>记录</value>
+  </data>
+  <data name="DecompilerSettings.RecordStructs" xml:space="preserve">
+    <value>记录结构</value>
   </data>
   <data name="DecompilerSettings.RemoveDeadAndSideEffectFreeCodeUseWithCaution" xml:space="preserve">
     <value>删除死代码和无副作用的代码(请谨慎使用)</value>
@@ -392,6 +425,9 @@
   </data>
   <data name="DecompilerSettings.RemoveOptionalArgumentsIfPossible" xml:space="preserve">
     <value>如果可能，删除可选参数</value>
+  </data>
+  <data name="DecompilerSettings.RequiredMembers" xml:space="preserve">
+    <value>Required 必要成员</value>
   </data>
   <data name="DecompilerSettings.SeparateLocalVariableDeclarations" xml:space="preserve">
     <value>如果可能，分离局部变量的声明与初始化（int x = 5; -&gt; int x; x = 5;）</value>
@@ -438,6 +474,9 @@
   <data name="DecompilerSettings.UseNamedArguments" xml:space="preserve">
     <value>使用命名参数</value>
   </data>
+  <data name="DecompilerSettings.UseNestedDirectoriesForNamespaces" xml:space="preserve">
+    <value>为命名空间使用嵌套目录</value>
+  </data>
   <data name="DecompilerSettings.UseNonTrailingNamedArguments" xml:space="preserve">
     <value>使用非尾随命名参数</value>
   </data>
@@ -446,6 +485,9 @@
   </data>
   <data name="DecompilerSettings.UsePatternBasedFixedStatement" xml:space="preserve">
     <value>使用基于模式的 fixed 语句</value>
+  </data>
+  <data name="DecompilerSettings.UsePrimaryConstructorSyntax" xml:space="preserve">
+    <value>使用带有记录的主构造器语法</value>
   </data>
   <data name="DecompilerSettings.UseRefLocalsForAccurateOrderOfEvaluation" xml:space="preserve">
     <value>使用 ref 局部变量以准确表达求值顺序</value>
@@ -471,6 +513,9 @@
   <data name="DecompilerSettings.VBSpecificOptions" xml:space="preserve">
     <value>VB 特定选项</value>
   </data>
+  <data name="DecompilerSettings.WithExpressions" xml:space="preserve">
+    <value>'with' 初始化器表达式</value>
+  </data>
   <data name="DecompilerSettingsPanelLongText" xml:space="preserve">
     <value>下面选择的设置将与语言下拉列表中的选择一起应用于反编译程序输出。在下拉列表中选择较低的语言版本将停用较高版本的所有选定选项。请注意, 某些设置隐式依赖于彼此, 例如: 如果不首先将静态调用转换为扩展方法调用, 则无法引入 LINQ 表达式。</value>
   </data>
@@ -491,6 +536,9 @@
   </data>
   <data name="DisplaySettingsPanel_Font" xml:space="preserve">
     <value>字体:</value>
+  </data>
+  <data name="DisplaySettingsPanel_Theme" xml:space="preserve">
+    <value>主题:</value>
   </data>
   <data name="Download" xml:space="preserve">
     <value>下载</value>
@@ -519,6 +567,9 @@
   <data name="ExpandUsingDeclarationsAfterDecompilation" xml:space="preserve">
     <value>反编译后展开引用和声明</value>
   </data>
+  <data name="ExtractPackageEntry" xml:space="preserve">
+    <value>提取包条目</value>
+  </data>
   <data name="Folding" xml:space="preserve">
     <value>折叠</value>
   </data>
@@ -542,6 +593,9 @@
   </data>
   <data name="HideEmptyMetadataTables" xml:space="preserve">
     <value>在树视图中隐藏空的元数据表</value>
+  </data>
+  <data name="HighlightCurrentLine" xml:space="preserve">
+    <value>高亮当前行</value>
   </data>
   <data name="HighlightMatchingBraces" xml:space="preserve">
     <value>高亮配对的大括号</value>
@@ -591,6 +645,9 @@
   <data name="Misc" xml:space="preserve">
     <value>杂项</value>
   </data>
+  <data name="NETFrameworkVersion" xml:space="preserve">
+    <value>.NET 版本 </value>
+  </data>
   <data name="Name" xml:space="preserve">
     <value>名称</value>
   </data>
@@ -631,6 +688,9 @@
   <data name="OpenListDialog__Open" xml:space="preserve">
     <value>打开(_O)</value>
   </data>
+  <data name="OperationWasCancelled" xml:space="preserve">
+    <value>操作已取消。</value>
+  </data>
   <data name="Options" xml:space="preserve">
     <value>选项</value>
   </data>
@@ -654,6 +714,11 @@
   </data>
   <data name="ProjectExportFormatSDKHint" xml:space="preserve">
     <value>已生成 SDK 样式项目。 访问 https://docs.microsoft.com/zh-cn//nuget/resources/check-project-format 了解更多。</value>
+  </data>
+  <data name="ProjectExportPathTooLong" xml:space="preserve">
+    <value>反编译程序集 {0} 失败，因为命名空间的名字过长或文件嵌套过深。
+如果你正在使用 Windows 10.0.14393 (Windows 10 version 1607) 或更新的版本，你可以通过在注册表 "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem" 中新建键值 “LongPathsEnabled”，并将其值设为 0x1，以启用 “长路径支持”
+如果你的系统已经支持长路径，但仍然出现这个问题。你可以尝试启用嵌套目录，你可以通过勾选 选项 &gt; 反编译器 &gt; 项目导出 &gt; 为命名空间使用嵌套目录 复选框启用这项设置。这应该可以解决问题，因为即便是在支持长路径的平台，一个文件夹的名称长度仍然是有限的，在 Windows/NTFS 上该限制为 255 字符。</value>
   </data>
   <data name="PropertyManuallyMissingReferencesListLoadedAssemblies" xml:space="preserve">
     <value>例如属性 getter/setter 访问。要获得最佳反编译结果，请手动将缺少的引用添加到加载的程序集列表中。</value>
@@ -708,6 +773,12 @@
   <data name="SaveCode" xml:space="preserve">
     <value>保存代码</value>
   </data>
+  <data name="ScopeSearchToThisAssembly" xml:space="preserve">
+    <value>在此程序集中搜索</value>
+  </data>
+  <data name="ScopeSearchToThisNamespace" xml:space="preserve">
+    <value>在此命名空间中搜索</value>
+  </data>
   <data name="Search" xml:space="preserve">
     <value>搜索...</value>
   </data>
@@ -747,6 +818,9 @@
   <data name="SelectVersionDropdownTooltip" xml:space="preserve">
     <value>选择输出语言的版本</value>
   </data>
+  <data name="SettingsChangeRestartRequired" xml:space="preserve">
+    <value>你必须重启ILSpy才能使得更改生效。</value>
+  </data>
   <data name="Shell" xml:space="preserve">
     <value>Shell</value>
   </data>
@@ -782,6 +856,9 @@
   </data>
   <data name="ShowPublicOnlyTypesMembers" xml:space="preserve">
     <value>只显示公有类型和成员</value>
+  </data>
+  <data name="ShowRawOffsetsAndBytesBeforeInstruction" xml:space="preserve">
+    <value>在每条 IL 指令前显示原始偏移量和字节</value>
   </data>
   <data name="ShowStateAfterThisStep" xml:space="preserve">
     <value>在此步骤之后显示状态</value>
@@ -819,14 +896,29 @@
   <data name="StringTable" xml:space="preserve">
     <value>字符串表</value>
   </data>
+  <data name="StyleTheWindowTitleBar" xml:space="preserve">
+    <value>为窗口标题栏应用自定义样式</value>
+  </data>
   <data name="TabSize" xml:space="preserve">
     <value>Tab 长度：</value>
+  </data>
+  <data name="Theme" xml:space="preserve">
+    <value>主题</value>
   </data>
   <data name="ToggleFolding" xml:space="preserve">
     <value>切换所有折叠</value>
   </data>
+  <data name="TreeViewOptions" xml:space="preserve">
+    <value>树视图选项</value>
+  </data>
   <data name="Type" xml:space="preserve">
     <value>类型</value>
+  </data>
+  <data name="UILanguage" xml:space="preserve">
+    <value>语言</value>
+  </data>
+  <data name="UILanguage_System" xml:space="preserve">
+    <value>系统</value>
   </data>
   <data name="UpdateILSpyFound" xml:space="preserve">
     <value>找不到 ILSpy 的更新。</value>
@@ -836,6 +928,9 @@
   </data>
   <data name="UseLogicOperationSugar" xml:space="preserve">
     <value>使用 logic 语法糖</value>
+  </data>
+  <data name="UseNestedNamespaceNodes" xml:space="preserve">
+    <value>使用嵌套的命名空间结构</value>
   </data>
   <data name="UseTabsInsteadOfSpaces" xml:space="preserve">
     <value>使用 Tab 替代空格</value>
@@ -887,6 +982,12 @@
   </data>
   <data name="_AddMainList" xml:space="preserve">
     <value>添加到主列表(_A)</value>
+  </data>
+  <data name="_Analyzer" xml:space="preserve">
+    <value>分析器(_A)</value>
+  </data>
+  <data name="_Assemblies" xml:space="preserve">
+    <value>程序集(_A)</value>
   </data>
   <data name="_CheckUpdates" xml:space="preserve">
     <value>检查更新(_C)</value>

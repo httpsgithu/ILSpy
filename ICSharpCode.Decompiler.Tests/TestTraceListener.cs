@@ -17,10 +17,13 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.Diagnostics;
+using System.Threading.Tasks;
+
+using ICSharpCode.Decompiler.Tests.Helpers;
 
 using NUnit.Framework;
 
-namespace ICSharpCode.Decompiler.Tests
+namespace ICSharpCode.Decompiler
 {
 	[SetUpFixture]
 	public class TestTraceListener : DefaultTraceListener
@@ -28,18 +31,28 @@ namespace ICSharpCode.Decompiler.Tests
 		[OneTimeSetUp]
 		public void RunBeforeAnyTests()
 		{
-			Debug.Listeners.Insert(0, this);
+			Trace.Listeners.Insert(0, this);
 		}
 
 		[OneTimeTearDown]
 		public void RunAfterAnyTests()
 		{
-			Debug.Listeners.Remove(this);
+			Trace.Listeners.Remove(this);
 		}
 
 		public override void Fail(string message, string detailMessage)
 		{
 			Assert.Fail(message + " " + detailMessage);
+		}
+	}
+
+	[SetUpFixture]
+	public class ToolsetSetup
+	{
+		[OneTimeSetUp]
+		public async Task RunBeforeAnyTests()
+		{
+			await Tester.Initialize().ConfigureAwait(false);
 		}
 	}
 }

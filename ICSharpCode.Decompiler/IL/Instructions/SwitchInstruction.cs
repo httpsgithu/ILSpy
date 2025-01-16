@@ -1,3 +1,4 @@
+#nullable enable
 // Copyright (c) 2014 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
@@ -16,10 +17,10 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
 using System.Diagnostics;
 using System.Linq;
 
+using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.Util;
 
 namespace ICSharpCode.Decompiler.IL
@@ -42,6 +43,12 @@ namespace ICSharpCode.Decompiler.IL
 		/// </summary>
 		public bool IsLifted;
 
+		/// <summary>
+		/// Additional type information used to interpret the value instruction.
+		/// Set by ILInlining to preserve stack information that would otherwise be lost.
+		/// </summary>
+		public IType? Type;
+
 		public SwitchInstruction(ILInstruction value)
 			: base(OpCode.SwitchInstruction)
 		{
@@ -49,7 +56,7 @@ namespace ICSharpCode.Decompiler.IL
 			this.Sections = new InstructionCollection<SwitchSection>(this, 1);
 		}
 
-		ILInstruction value;
+		ILInstruction value = null!;
 		public ILInstruction Value {
 			get { return this.value; }
 			set {
@@ -82,7 +89,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write("switch");
 			if (IsLifted)
 				output.Write(".lifted");
-			output.Write(" (");
+			output.Write(' ');
+			Type?.WriteTo(output);
+			output.Write('(');
 			value.WriteTo(output, options);
 			output.Write(") ");
 			output.MarkFoldStart("{...}");

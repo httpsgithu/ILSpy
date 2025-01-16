@@ -60,7 +60,8 @@ namespace ICSharpCode.Decompiler.Metadata
 		}
 
 		static readonly string[] LookupPaths = new string[] {
-			 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages")
+			Environment.GetEnvironmentVariable("NUGET_PACKAGES"),
+			Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages")
 		};
 
 		static readonly string[] RuntimePacks = new[] {
@@ -109,6 +110,10 @@ namespace ICSharpCode.Decompiler.Metadata
 
 				foreach (var path in LookupPaths)
 				{
+					if (string.IsNullOrWhiteSpace(path))
+					{
+						continue;
+					}
 					foreach (var p in packages)
 					{
 						foreach (var item in p.RuntimeComponents)
@@ -168,10 +173,16 @@ namespace ICSharpCode.Decompiler.Metadata
 					identifier = "NETStandard.Library";
 					identifierExt = "netstandard" + version.Major + "." + version.Minor;
 					break;
+				case TargetFrameworkIdentifier.NET:
+					identifier = "Microsoft.NETCore.App";
+					identifierExt = "net" + version.Major + "." + version.Minor;
+					break;
 				default:
 					throw new NotSupportedException();
 			}
-			return Path.Combine(dotnetBasePath, "packs", identifier + ".Ref", version.ToString(), "ref", identifierExt);
+			string basePath = Path.Combine(dotnetBasePath, "packs", identifier + ".Ref");
+			string versionFolder = GetClosestVersionFolder(basePath, version);
+			return Path.Combine(basePath, versionFolder, "ref", identifierExt);
 		}
 
 		static IEnumerable<DotNetCorePackageInfo> LoadPackageInfos(string depsJsonFileName, string targetFramework)
@@ -238,21 +249,24 @@ namespace ICSharpCode.Decompiler.Metadata
 		static string GetClosestVersionFolder(string basePath, Version version)
 		{
 			var foundVersions = new DirectoryInfo(basePath).GetDirectories()
-				.Select(d => ConvertToVersion(d.Name))
+				.Select(ConvertToVersion)
 				.Where(v => v.version != null);
-			foreach (var folder in foundVersions.OrderBy(v => v.Item1))
+			foreach (var folder in foundVersions.OrderBy(v => v.version))
 			{
-				if (folder.version >= version)
-					return folder.directoryName;
+				if (folder.version >= version
+					&& folder.directory.EnumerateFiles("*.dll", SearchOption.AllDirectories).Any())
+				{
+					return folder.directory.Name;
+				}
 			}
 			return version.ToString();
 		}
 
-		internal static (Version version, string directoryName) ConvertToVersion(string name)
+		internal static (Version version, DirectoryInfo directory) ConvertToVersion(DirectoryInfo directory)
 		{
 			string RemoveTrailingVersionInfo()
 			{
-				string shortName = name;
+				string shortName = directory.Name;
 				int dashIndex = shortName.IndexOf('-');
 				if (dashIndex > 0)
 				{
@@ -263,7 +277,7 @@ namespace ICSharpCode.Decompiler.Metadata
 
 			try
 			{
-				return (new Version(RemoveTrailingVersionInfo()), name);
+				return (new Version(RemoveTrailingVersionInfo()), directory);
 			}
 			catch (Exception ex)
 			{
@@ -286,9 +300,7 @@ namespace ICSharpCode.Decompiler.Metadata
 					{
 						if ((new FileInfo(fileName).Attributes & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint)
 						{
-							var sb = new StringBuilder();
-							realpath(fileName, sb);
-							fileName = sb.ToString();
+							fileName = GetRealPath(fileName, Encoding.Default);
 							if (!File.Exists(fileName))
 								continue;
 						}
@@ -300,7 +312,33 @@ namespace ICSharpCode.Decompiler.Metadata
 			return null;
 		}
 
-		[DllImport("libc")]
-		static extern void realpath(string path, StringBuilder resolvedPath);
+		static unsafe string GetRealPath(string path, Encoding encoding)
+		{
+			var bytes = encoding.GetBytes(path);
+			fixed (byte* input = bytes)
+			{
+
+				byte* output = GetRealPath(input, null);
+				if (output == null)
+				{
+					return null;
+				}
+				int len = 0;
+				for (byte* c = output; *c != 0; c++)
+				{
+					len++;
+				}
+				byte[] result = new byte[len];
+				Marshal.Copy((IntPtr)output, result, 0, result.Length);
+				Free(output);
+				return encoding.GetString(result);
+			}
+		}
+
+		[DllImport("libc", EntryPoint = "realpath")]
+		static extern unsafe byte* GetRealPath(byte* path, byte* resolvedPath);
+
+		[DllImport("libc", EntryPoint = "free")]
+		static extern unsafe void Free(void* ptr);
 	}
 }

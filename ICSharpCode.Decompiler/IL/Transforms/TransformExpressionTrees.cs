@@ -499,7 +499,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				case 2:
 					if (op == BinaryNumericOperator.ShiftLeft || op == BinaryNumericOperator.ShiftRight)
 					{
-						if (!rightType.IsKnownType(KnownTypeCode.Int32))
+						if (!NullableType.GetUnderlyingType(rightType).IsKnownType(KnownTypeCode.Int32))
 							return (null, SpecialType.UnknownType);
 					}
 					else
@@ -507,7 +507,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						if (!rightType.Equals(leftType))
 							return (null, SpecialType.UnknownType);
 					}
-					return (() => new BinaryNumericInstruction(op, left(), right(), isChecked == true, leftType.GetSign()), leftType);
+					return (() => new BinaryNumericInstruction(op, left(), right(),
+						NullableType.GetUnderlyingType(leftType).GetStackType(),
+						NullableType.GetUnderlyingType(rightType).GetStackType(),
+						isChecked == true,
+						leftType.GetSign(),
+						isLifted: NullableType.IsNullable(leftType) || NullableType.IsNullable(rightType)), leftType);
 				case 3:
 					if (!MatchGetMethodFromHandle(invocation.Arguments[2], out method))
 						return (null, SpecialType.UnknownType);
@@ -539,6 +544,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return (null, SpecialType.UnknownType);
 			if (MatchGetMethodFromHandle(invocation.Arguments[0], out var member))
 			{
+				var method = (IMethod)member;
+				// It is possible to use Expression.Bind with a get-accessor,
+				// however, it would be an invalid expression tree if the property is readonly.
+				// As this is an assignment, the ILAst expects a set-accessor. To avoid any problems
+				// constructing property assignments, we explicitly use the set-accessor instead.
+				if (method.AccessorOwner is IProperty { CanSet: true } property && method != property.Setter)
+				{
+					member = property.Setter;
+				}
 			}
 			else if (MatchGetFieldFromHandle(invocation.Arguments[0], out member))
 			{
@@ -628,29 +642,51 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 
 		ILInstruction PrepareCallTarget(IType expectedType, ILInstruction target, IType targetType)
 		{
+			ILInstruction result;
 			switch (CallInstruction.ExpectedTypeForThisPointer(expectedType))
 			{
 				case StackType.Ref:
 					if (target.ResultType == StackType.Ref)
-						return target;
+					{
+						result = target;
+					}
+					else if (target is LdLoc ldloc)
+					{
+						result = new LdLoca(ldloc.Variable).WithILRange(ldloc);
+					}
 					else
-						return new AddressOf(target, expectedType);
+					{
+						result = new AddressOf(target, expectedType);
+					}
+					break;
 				case StackType.O:
 					if (targetType.IsReferenceType == false)
 					{
-						return new Box(target, targetType);
+						result = new Box(target, targetType);
 					}
 					else
 					{
-						return target;
+						result = target;
 					}
+					break;
 				default:
-					if (expectedType.Kind == TypeKind.Unknown && target.ResultType != StackType.Unknown)
-					{
-						return new Conv(target, PrimitiveType.Unknown, false, Sign.None);
-					}
-					return target;
+					result = target;
+					break;
 			}
+
+			if (expectedType.Kind == TypeKind.Unknown && result.ResultType != StackType.Unknown)
+			{
+				result = new Conv(target, PrimitiveType.Unknown, false, Sign.None);
+			}
+			else if (expectedType.Kind != TypeKind.Unknown && result.ResultType == StackType.Unknown)
+			{
+				// if references are missing, we need to coerce the unknown type to the expected type.
+				// Otherwise we will get loads of assertions and expression trees
+				// are usually explicit about any conversions.
+				result = new Conv(result, expectedType.ToPrimitiveType(), false, Sign.None);
+			}
+
+			return result;
 		}
 
 		ILInstruction UnpackConstant(ILInstruction inst)
@@ -1188,10 +1224,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var (argument, argumentType) = ConvertInstruction(invocation.Arguments[0]);
 			if (argument == null)
 				return (null, SpecialType.UnknownType);
+			var underlyingType = NullableType.GetUnderlyingType(argumentType);
 			switch (invocation.Arguments.Count)
 			{
 				case 1:
-					return (() => argumentType.IsKnownType(KnownTypeCode.Boolean) ? Comp.LogicNot(argument()) : (ILInstruction)new BitNot(argument()), argumentType);
+					bool isLifted = NullableType.IsNullable(argumentType);
+					return (() => underlyingType.IsKnownType(KnownTypeCode.Boolean)
+						? Comp.LogicNot(argument(), isLifted)
+						: (ILInstruction)new BitNot(argument(), isLifted, underlyingType.GetStackType()), argumentType);
 				case 2:
 					if (!MatchGetMethodFromHandle(invocation.Arguments[1], out var method))
 						return (null, SpecialType.UnknownType);
@@ -1292,6 +1332,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				case 1:
 					ILInstruction left;
 					var underlyingType = NullableType.GetUnderlyingType(argumentType);
+
 					switch (underlyingType.GetStackType())
 					{
 						case StackType.I4:
@@ -1315,7 +1356,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						default:
 							return (null, SpecialType.UnknownType);
 					}
-					return (() => new BinaryNumericInstruction(op, left, argument(), isChecked == true, argumentType.GetSign()), argumentType);
+					return (() => new BinaryNumericInstruction(op, left, argument(),
+						underlyingType.GetStackType(),
+						underlyingType.GetStackType(),
+						isChecked == true,
+						argumentType.GetSign(),
+						isLifted: NullableType.IsNullable(argumentType)), argumentType);
 				case 2:
 					if (!MatchGetMethodFromHandle(invocation.Arguments[1], out var method))
 						return (null, SpecialType.UnknownType);
@@ -1390,7 +1436,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				value = call.Arguments[0];
 				if (call.Arguments.Count == 2)
 					return MatchGetTypeFromHandle(call.Arguments[1], out type);
-				type = value.InferType(context.TypeSystem);
+				type = value switch {
+					LdNull => SpecialType.NullType,
+					LdStr => context.TypeSystem.FindType(KnownTypeCode.String),
+					LdcF4 => context.TypeSystem.FindType(KnownTypeCode.Single),
+					LdcF8 => context.TypeSystem.FindType(KnownTypeCode.Double),
+					LdcI4 => context.TypeSystem.FindType(KnownTypeCode.Int32),
+					LdcI8 => context.TypeSystem.FindType(KnownTypeCode.Int64),
+					_ => value.InferType(context.TypeSystem),
+				};
 				return true;
 			}
 			return false;
@@ -1411,7 +1465,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			//castclass System.Reflection.MethodInfo(call GetMethodFromHandle(ldmembertoken op_Addition))
 			if (!inst.MatchCastClass(out var arg, out var type))
 				return false;
-			if (!type.Equals(context.TypeSystem.FindType(new FullTypeName("System.Reflection.MethodInfo"))))
+			if (type.FullName != "System.Reflection.MethodInfo")
 				return false;
 			if (!(arg is CallInstruction call && call.Method.FullName == "System.Reflection.MethodBase.GetMethodFromHandle"))
 				return false;
@@ -1424,7 +1478,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			//castclass System.Reflection.ConstructorInfo(call GetMethodFromHandle(ldmembertoken op_Addition))
 			if (!inst.MatchCastClass(out var arg, out var type))
 				return false;
-			if (!type.Equals(context.TypeSystem.FindType(new FullTypeName("System.Reflection.ConstructorInfo"))))
+			if (type.FullName != "System.Reflection.ConstructorInfo")
 				return false;
 			if (!(arg is CallInstruction call && call.Method.FullName == "System.Reflection.MethodBase.GetMethodFromHandle"))
 				return false;

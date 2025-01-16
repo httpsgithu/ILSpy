@@ -1,4 +1,5 @@
-﻿// Copyright (c) 2014 Daniel Grunwald
+﻿#nullable enable
+// Copyright (c) 2014 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -21,7 +22,6 @@ using System.Diagnostics;
 
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.TypeSystem;
-using ICSharpCode.Decompiler.Util;
 
 namespace ICSharpCode.Decompiler.IL
 {
@@ -130,7 +130,7 @@ namespace ICSharpCode.Decompiler.IL
 			}
 		}
 
-		public readonly ComparisonLiftingKind LiftingKind;
+		public ComparisonLiftingKind LiftingKind;
 
 		/// <summary>
 		/// Gets the stack type of the comparison inputs.
@@ -223,7 +223,11 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			return new Comp(ComparisonKind.Equality, Sign.None, arg, new LdcI4(0));
 		}
+
+		public static Comp LogicNot(ILInstruction arg, bool isLifted)
+		{
+			var liftingKind = isLifted ? ComparisonLiftingKind.ThreeValuedLogic : ComparisonLiftingKind.None;
+			return new Comp(ComparisonKind.Equality, liftingKind, StackType.I4, Sign.None, arg, new LdcI4(0));
+		}
 	}
 }
-
-

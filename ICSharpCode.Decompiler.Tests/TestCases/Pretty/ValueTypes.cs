@@ -281,5 +281,34 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		{
 			return ulong.MaxValue.ToString();
 		}
+
+		public static void InliningDefaultValue()
+		{
+			Test(default(DateTime).GetType());
+			Test(default(DateTime).ToString());
+		}
+
+		public static void Test(object x)
+		{
+		}
+
+#if CS120
+		public static void AcceptIn(in S o)
+		{
+		}
+
+		public static void AcceptRefReadOnly(ref readonly S o)
+		{
+		}
+
+		private static void Use(in S param)
+		{
+			AcceptIn(new S(5));
+			S o = new S(10);
+			AcceptRefReadOnly(in o);
+			AcceptIn(in param);
+			AcceptRefReadOnly(in param);
+		}
+#endif
 	}
 }

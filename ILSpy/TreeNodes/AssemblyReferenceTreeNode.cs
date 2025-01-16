@@ -17,9 +17,16 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Threading;
 
+using ICSharpCode.AvalonEdit.Highlighting;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
+using ICSharpCode.Decompiler.TypeSystem;
+using ICSharpCode.ILSpy.Themes;
+using ICSharpCode.ILSpyX.TreeView.PlatformAbstractions;
 
 namespace ICSharpCode.ILSpy.TreeNodes
 {
@@ -28,33 +35,43 @@ namespace ICSharpCode.ILSpy.TreeNodes
 	/// </summary>
 	public sealed class AssemblyReferenceTreeNode : ILSpyTreeNode
 	{
+		readonly MetadataModule module;
 		readonly AssemblyReference r;
 		readonly AssemblyTreeNode parentAssembly;
 
-		public AssemblyReferenceTreeNode(AssemblyReference r, AssemblyTreeNode parentAssembly)
+		public AssemblyReferenceTreeNode(MetadataModule module, AssemblyReference r, AssemblyTreeNode parentAssembly)
 		{
+			this.module = module ?? throw new ArgumentNullException(nameof(module));
 			this.r = r ?? throw new ArgumentNullException(nameof(r));
 			this.parentAssembly = parentAssembly ?? throw new ArgumentNullException(nameof(parentAssembly));
 			this.LazyLoading = true;
 		}
 
-		public IAssemblyReference AssemblyNameReference => r;
+		public AssemblyReference AssemblyReference => r;
 
 		public override object Text {
-			get { return r.Name + ((System.Reflection.Metadata.EntityHandle)r.Handle).ToSuffixString(); }
+			get { return Language.EscapeName(r.Name) + GetSuffixString(r.Handle); }
 		}
 
-		public override object Icon => Images.Assembly;
+		public override object Icon => ImagesProvider.Assembly;
 
 		public override bool ShowExpander {
 			get {
+				// Special case for mscorlib: It likely doesn't have any children so call EnsureLazyChildren to
+				// remove the expander from the node.
 				if (r.Name == "mscorlib")
-					EnsureLazyChildren(); // likely doesn't have any children
+				{
+					// See https://github.com/icsharpcode/ILSpy/issues/2548: Adding assemblies to the tree view
+					// while the list of references is updated causes problems with WPF's ListView rendering.
+					// Moving the assembly resolving out of the "add assembly reference"-loop by using the
+					// dispatcher fixes the issue.
+					Dispatcher.CurrentDispatcher.BeginInvoke((Action)EnsureLazyChildren, DispatcherPriority.Normal);
+				}
 				return base.ShowExpander;
 			}
 		}
 
-		public override void ActivateItem(System.Windows.RoutedEventArgs e)
+		public override void ActivateItem(IPlatformRoutedEventArgs e)
 		{
 			if (parentAssembly.Parent is AssemblyListTreeNode assemblyListNode)
 			{
@@ -66,12 +83,15 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		protected override void LoadChildren()
 		{
-			var resolver = parentAssembly.LoadedAssembly.GetAssemblyResolver();
-			var module = resolver.Resolve(r);
-			if (module != null)
+			this.Children.Add(new AssemblyReferenceReferencedTypesTreeNode(module, r));
+
+			var resolver = parentAssembly.LoadedAssembly.GetAssemblyResolver(SettingsService.DecompilerSettings.AutoLoadAssemblyReferences);
+			var referencedModule = resolver.Resolve(r);
+			if (referencedModule != null)
 			{
-				foreach (var childRef in module.AssemblyReferences)
-					this.Children.Add(new AssemblyReferenceTreeNode(childRef, parentAssembly));
+				var module = (MetadataModule)referencedModule.GetTypeSystemWithCurrentOptionsOrNull(SettingsService)?.MainModule;
+				foreach (var childRef in referencedModule.AssemblyReferences)
+					this.Children.Add(new AssemblyReferenceTreeNode(module, childRef, parentAssembly));
 			}
 		}
 
@@ -80,24 +100,65 @@ namespace ICSharpCode.ILSpy.TreeNodes
 			var loaded = parentAssembly.LoadedAssembly.LoadedAssemblyReferencesInfo.TryGetInfo(r.FullName, out var info);
 			if (r.IsWindowsRuntime)
 			{
-				language.WriteCommentLine(output, r.FullName + " [WinRT]" + (!loaded ? " (unresolved)" : ""));
+				output.WriteLine(r.FullName + " [WinRT]" + (!loaded ? " (unresolved)" : ""));
 			}
 			else
 			{
-				language.WriteCommentLine(output, r.FullName + (!loaded ? " (unresolved)" : ""));
+				output.WriteLine(r.FullName + (!loaded ? " (unresolved)" : ""));
 			}
 			if (loaded)
 			{
 				output.Indent();
-				language.WriteCommentLine(output, "Assembly reference loading information:");
+				output.WriteLine("Assembly reference loading information:");
 				if (info.HasErrors)
-					language.WriteCommentLine(output, "There were some problems during assembly reference load, see below for more information!");
-				foreach (var item in info.Messages)
 				{
-					language.WriteCommentLine(output, $"{item.Item1}: {item.Item2}");
+					output.WriteLine("There were some problems during assembly reference load, see below for more information!");
 				}
+				PrintAssemblyLoadLogMessages(output, info);
 				output.Unindent();
 				output.WriteLine();
+			}
+		}
+
+		internal static void PrintAssemblyLoadLogMessages(ITextOutput output, UnresolvedAssemblyNameReference asm)
+		{
+			HighlightingColor red = GetColor(Colors.Red);
+			HighlightingColor yellow = GetColor(Colors.Yellow);
+
+			var smartOutput = output as ISmartTextOutput;
+
+			foreach (var item in asm.Messages)
+			{
+				switch (item.Item1)
+				{
+					case MessageKind.Error:
+						smartOutput?.BeginSpan(red);
+						output.Write("Error: ");
+						smartOutput?.EndSpan();
+						break;
+					case MessageKind.Warning:
+						smartOutput?.BeginSpan(yellow);
+						output.Write("Warning: ");
+						smartOutput?.EndSpan();
+						break;
+					default:
+						output.Write(item.Item1 + ": ");
+						break;
+				}
+				output.WriteLine(item.Item2);
+			}
+
+			static HighlightingColor GetColor(Color color)
+			{
+				var hc = new HighlightingColor {
+					Foreground = new SimpleHighlightingBrush(color),
+					FontWeight = FontWeights.Bold
+				};
+				if (ThemeManager.Current.IsDarkTheme)
+				{
+					return ThemeManager.GetColorForDarkTheme(hc);
+				}
+				return hc;
 			}
 		}
 	}

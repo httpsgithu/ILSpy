@@ -16,7 +16,6 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -32,7 +31,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var callsToFix = new List<Call>();
 			foreach (var call in function.Descendants.OfType<Call>())
 			{
-				if (!(call.Method.IsOperator && (call.Method.Name == "op_Increment" || call.Method.Name == "op_Decrement")))
+				if (!UserDefinedCompoundAssign.IsIncrementOrDecrement(call.Method, context.Settings))
 					continue;
 				if (call.Arguments.Count != 1)
 					continue;
@@ -73,7 +72,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				else
 				{
 					context.Step($"Fix {call.Method.Name} call at 0x{call.StartILOffset:x4} using new local", call);
-					var newVariable = call.Arguments[0].Extract();
+					var newVariable = call.Arguments[0].Extract(context);
 					if (newVariable == null)
 					{
 						Debug.Fail("Failed to extract argument of remaining increment/decrement");
